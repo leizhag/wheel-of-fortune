@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+  <script src="https://unpkg.com/konva@3.3.3/konva.min.js"></script>
+  <meta charset="utf-8" />
+  <title>加班餐之轮</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #f0f0f0;
+    }
+  </style>
+</head>
+
+<link rel="icon"
+      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>☸︎</text></svg>">
+
+<body>
+  <div id="container"></div>
+  <script>
+    // TODO: random validation
+    // var restaurants = '赛百味 馋厨 他二哥刀削面 兰州牛肉拉面 永和大王 秦唐味道 渝公主 振达绿厨 恋尚小馆 刘记酱骨饭 砂锅时代 马何实 福元十品'.split(' ');
+    // var restaurants = '国会客户餐厅 美食城 恋尚小馆 晋爱面馆 赛百味 他二哥 刘记酱骨饭 秦唐味道 云南过桥米线 永和大王 渝公主 兰州拉面 福元十品 沙县';
+    var restaurants = '秦唐 米线 永和🥛 拉🍜 🦴 简粤 鱼🍚 鱼🍜';
+    restaurants = restaurants.split(' ');
+    var numWedges = restaurants.length;
+    var colors = '(208, 185, 152).(146, 129, 109).(175, 88, 84).(240, 191, 183).(232, 203, 131).(158, 161, 124).(169, 206, 192).(119, 109, 130)'.split('.')
+
+    var width = window.innerWidth;
+    var height = window.innerHeight;
+
+    var wedgeRadius = Math.min(width, height) * 0.4;
+    var longestRestaurantName = Math.max(...restaurants.map(rest => rest.length));
+    var fontSize = Math.min(64, wedgeRadius / longestRestaurantName * 0.6);
+
+    Konva.angleDeg = false;
+    var angularVelocity = 20 + Math.random() * 40; //6;
+    console.log(`angularVelocity: ${angularVelocity}`);
+
+    var angularVelocities = [];
+    var lastRotation = 0;
+    var controlled = false;
+    var angularFriction = 0.2;
+    var target, activeWedge, stage, layer, wheel, pointer;
+    var finished = false;
+
+    function getAverageAngularVelocity() {
+      var total = 0;
+      var len = angularVelocities.length;
+
+      if (len === 0) {
+        return 0;
+      }
+
+      for (var n = 0; n < len; n++) {
+        total += angularVelocities[n];
+      }
+
+      return total / len;
+    }
+    function addWedge(n) {
+      var color = `rgb${colors[n % colors.length]}`;
+      var angle = (2 * Math.PI) / numWedges;
+
+      var wedge = new Konva.Group({
+        rotation: (2 * n * Math.PI) / numWedges
+      });
+
+      var wedgeBackground = new Konva.Wedge({
+        radius: wedgeRadius,
+        angle: angle,
+        fillRadialGradientStartPoint: 0,
+        fillRadialGradientStartRadius: 0,
+        fillRadialGradientEndPoint: 0,
+        fillRadialGradientEndRadius: wedgeRadius,
+        fillRadialGradientColorStops: [0, color, 1, color],
+        fill: '#64e9f8',
+        fillPriority: 'radial-gradient',
+        stroke: '#ccc',
+        strokeWidth: 0
+      });
+
+      wedge.add(wedgeBackground);
+
+      var text = new Konva.Text({
+        text: Array.from(restaurants[n]).join('\n'),
+        fontFamily: 'Calibri',
+        fontSize: fontSize,
+        fill: 'black',
+        align: 'center',
+        rotation: (Math.PI + angle) / 2,
+        x: Math.cos(angle / 2) * wedgeRadius * 0.8 + Math.cos(Math.PI / 2 - angle) * fontSize / 2,
+        y: Math.sin(angle / 2) * wedgeRadius * 0.8 - Math.sin(Math.PI / 2 - angle) * fontSize / 2,
+        listening: false
+      });
+
+      wedge.add(text);
+      text.cache();
+
+      wedge.startRotation = wedge.rotation();
+
+      wheel.add(wedge);
+    }
+    function animate(frame) {
+      // handle wheel spin
+      var angularVelocityChange =
+        (angularVelocity * frame.timeDiff * (1 - angularFriction)) / 1000;
+      angularVelocity -= angularVelocityChange;
+
+      // activate / deactivate wedges based on point intersection
+      var shape = stage.getIntersection({
+        x: stage.width() / 2,
+        y: wedgeRadius
+      });
+
+      if (controlled) {
+        if (angularVelocities.length > 10) {
+          angularVelocities.shift();
+        }
+
+        angularVelocities.push(
+          ((wheel.rotation() - lastRotation) * 1000) / frame.timeDiff
+        );
+      } else {
+        var diff = (frame.timeDiff * angularVelocity) / 1000;
+        if (diff > 0.0001) {
+          wheel.rotate(diff);
+        } else if (!finished && !controlled) {
+          // if (shape) {
+          //   var text = shape
+          //     .getParent()
+          //     .findOne('Text')
+          //     .text();
+          //   var price = text.split('\n').join('');
+          //   alert('去吃 ' + price);
+          // }
+          finished = true;
+        }
+      }
+      lastRotation = wheel.rotation();
+
+      if (shape) {
+        if (shape && (!activeWedge || shape._id !== activeWedge._id)) {
+          /* pointer.y(wedgeRadius * 0.1);
+
+          new Konva.Tween({
+            node: pointer,
+            duration: 0.3,
+            y: wedgeRadius * 0.12,
+            easing: Konva.Easings.ElasticEaseOut
+          }).play(); */
+
+          if (activeWedge) {
+            activeWedge.fillPriority('radial-gradient');
+          }
+          shape.fillPriority('fill');
+          activeWedge = shape;
+        }
+      }
+    }
+    function init() {
+      stage = new Konva.Stage({
+        container: 'container',
+        width: width,
+        height: height
+      });
+      layer = new Konva.Layer();
+      wheel = new Konva.Group({
+        x: stage.width() / 2,
+        y: stage.height() / 2
+      });
+
+      for (var n = 0; n < numWedges; n++) {
+        addWedge(n);
+      }
+
+      var pointerRadius = wedgeRadius / 10;
+
+      pointer = new Konva.Wedge({
+        fillRadialGradientStartPoint: 0,
+        fillRadialGradientStartRadius: 0,
+        fillRadialGradientEndPoint: 0,
+        fillRadialGradientEndRadius: 30,
+        fillRadialGradientColorStops: [0, 'green', 1, 'green'],
+        stroke: 'white',
+        strokeWidth: 2,
+        lineJoin: 'round',
+        angle: 1,
+        radius: wedgeRadius / 10,
+        x: stage.width() / 2,
+        y: stage.height() / 2 - wedgeRadius + pointerRadius / 2,
+        rotation: -90,
+        shadowColor: 'black',
+        shadowOffset: 3,
+        shadowBlur: 2,
+        shadowOpacity: 0.5
+      });
+
+      // add components to the stage
+      layer.add(wheel);
+      layer.add(pointer);
+      stage.add(layer);
+
+      // bind events
+      wheel.on('mousedown touchstart', function (evt) {
+        angularVelocity = 0;
+        controlled = true;
+        target = evt.target;
+        finished = false;
+      });
+      // add listeners to container
+      stage.addEventListener(
+        'mouseup touchend',
+        function () {
+          controlled = false;
+          angularVelocity = getAverageAngularVelocity() * 5;
+
+          if (angularVelocity > 20) {
+            angularVelocity = 20;
+          } else if (angularVelocity < -20) {
+            angularVelocity = -20;
+          }
+
+          angularVelocities = [];
+        },
+        false
+      );
+
+      stage.addEventListener(
+        'mousemove touchmove',
+        function () {
+          var mousePos = stage.getPointerPosition();
+          if (controlled && mousePos && target) {
+            var x = mousePos.x - wheel.getX();
+            var y = mousePos.y - wheel.getY();
+            var atan = Math.atan(y / x);
+            var rotation = x >= 0 ? atan : atan + Math.PI;
+            var targetGroup = target.getParent();
+
+            wheel.rotation(
+              rotation - targetGroup.startRotation - target.angle() / 2
+            );
+          }
+        },
+        false
+      );
+
+      var anim = new Konva.Animation(animate, layer);
+
+      // wait one second and then spin the wheel
+      setTimeout(function () {
+        anim.start();
+      }, 1000);
+    }
+    init();
+  </script>
+</body>
+
+</html>
